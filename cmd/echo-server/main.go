@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/http2"
@@ -133,13 +134,21 @@ func serveHTTP(wr http.ResponseWriter, req *http.Request) {
 
 	fmt.Fprintf(wr, "%s %s %s\n", req.Proto, req.Method, req.URL)
 	fmt.Fprintln(wr, "")
+
+	delays := req.URL.Query()["delay"]
+	if len(delays) > 0 {
+		if d, err := time.ParseDuration(delays[0]); err == nil {
+			time.Sleep(d)
+			fmt.Fprintf(wr, "Delayed by: %s\n\n", delays[0])
+		}
+	}
+
 	fmt.Fprintf(wr, "Host: %s\n", req.Host)
 	for key, values := range req.Header {
 		for _, value := range values {
 			fmt.Fprintf(wr, "%s: %s\n", key, value)
 		}
 	}
-
 	fmt.Fprintln(wr, "")
 	io.Copy(wr, req.Body)
 }
