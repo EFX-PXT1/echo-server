@@ -2,12 +2,15 @@ package main
 
 import (
 	"bytes"
+        "context"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+        "os/signal"
+        "syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,6 +26,14 @@ func main() {
 
 	fmt.Printf("Echo server listening on port %s.\n", port)
 
+        ctx, cancel := context.WithCancel(context.Background())
+        signalC := make(chan os.Signal, 1)
+        signal.Notify(signalC, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
+        go func() {
+                <-signalC
+                cancel()
+        }()
+
 	err := http.ListenAndServe(
 		":"+port,
 		h2c.NewHandler(
@@ -33,6 +44,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	<-ctx.Done()
 }
 
 var upgrader = websocket.Upgrader{
