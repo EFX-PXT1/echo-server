@@ -1,4 +1,4 @@
-.PHONY: binaries build run start stop pause unpause logs explore push pull clean
+.PHONY: binaries build run start stop pause unpause push pull dive clean
 
 NAME:=$(shell basename `pwd`)
 
@@ -20,6 +20,7 @@ build no-cache: $(ECHO-SERVER)
 
 $(ECHO-SERVER):
 	cd cmd/echo-server && CGO_ENABLED=0 go build -ldflags="-extldflags=-static"
+	chmod 755 $@
 
 run:
 	docker run -d \
@@ -41,6 +42,9 @@ pull:
 	-gcloud auth print-access-token | docker login -u oauth2accesstoken --password-stdin https://eu.gcr.io
 	docker pull $(REPO)$(IMAGEBASE):$(TAG)
 	docker tag $(REPO)$(IMAGEBASE):$(TAG) $(IMAGEBASE)
+
+dive:
+	dive $(REPO)$(IMAGEBASE):$(TAG)
 
 clean:
 	-rm cmd/echo-server/echo-server
