@@ -2,15 +2,12 @@ package main
 
 import (
 	"bytes"
-        "context"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
-        "os/signal"
-        "syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -26,13 +23,7 @@ func main() {
 
 	fmt.Printf("Echo server listening on port %s.\n", port)
 
-        ctx, cancel := context.WithCancel(context.Background())
-        signalC := make(chan os.Signal, 1)
-        signal.Notify(signalC, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
-        go func() {
-                <-signalC
-                cancel()
-        }()
+	ctx := signalContext()
 
 	err := http.ListenAndServe(
 		":"+port,
@@ -147,6 +138,7 @@ func serveHTTP(wr http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(wr, "%s %s %s\n", req.Proto, req.Method, req.URL)
 	fmt.Fprintln(wr, "")
 
+	// delay response if requested
 	delays := req.URL.Query()["delay"]
 	if len(delays) > 0 {
 		if d, err := time.ParseDuration(delays[0]); err == nil {
@@ -155,6 +147,7 @@ func serveHTTP(wr http.ResponseWriter, req *http.Request) {
 		}
 	}
 
+	// output request headers
 	fmt.Fprintf(wr, "Host: %s\n", req.Host)
 	for key, values := range req.Header {
 		for _, value := range values {
@@ -162,5 +155,16 @@ func serveHTTP(wr http.ResponseWriter, req *http.Request) {
 		}
 	}
 	fmt.Fprintln(wr, "")
+
+	// dump environment if requested
+	if _, ok := req.URL.Query()["env"]; ok {
+		for _, e := range os.Environ() {
+			fmt.Fprintf(wr, "%s\n", e)
+			//			pair := strings.SplitAfterN(e, "=", 2)
+			//			fmt.Fprintf(wr, "%s: %s\n", pair[0], pair[1])
+		}
+		fmt.Fprintln(wr, "")
+	}
+
 	io.Copy(wr, req.Body)
 }
