@@ -15,6 +15,8 @@ import (
 	"golang.org/x/net/http2/h2c"
 )
 
+var meta string
+
 func main() {
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -22,6 +24,13 @@ func main() {
 	}
 
 	fmt.Printf("Echo server listening on port %s.\n", port)
+
+	// populate meta data
+	if metaFile, ok := os.LookupEnv("META_FILE"); ok {
+		if data, err := os.ReadFile(metaFile); err == nil {
+			meta = string(data[:])
+		}
+	}
 
 	ctx := signalContext()
 
@@ -164,6 +173,11 @@ func serveHTTP(wr http.ResponseWriter, req *http.Request) {
 			//			fmt.Fprintf(wr, "%s: %s\n", pair[0], pair[1])
 		}
 		fmt.Fprintln(wr, "")
+	}
+
+	// dump meta if requested
+	if _, ok := req.URL.Query()["meta"]; ok {
+		fmt.Fprintf(wr, "%s\n\n", meta)
 	}
 
 	io.Copy(wr, req.Body)
