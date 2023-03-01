@@ -1,4 +1,4 @@
-.PHONY: binaries build run start stop pause unpause push pull dive clean
+.PHONY: binaries build run start stop pause unpause push pull dive clean tidy
 
 NAME:=$(shell basename `pwd`)
 
@@ -17,6 +17,11 @@ no-cache: FLAGS += --no-cache
 
 build no-cache: $(ECHO-SERVER)
 	docker build $(FLAGS) -t $(IMAGEBASE) .
+
+tidy:
+	@GOPROXY=https://nrm.us.equifax.com/repository/efxgo/ \
+	GOSUMDB='sum.golang.org https://nrm.us.equifax.com/repository/golang-sum-proxy/' \
+	go mod tidy
 
 $(ECHO-SERVER):
 	cd cmd/echo-server && CGO_ENABLED=0 go build -ldflags="-extldflags=-static"
