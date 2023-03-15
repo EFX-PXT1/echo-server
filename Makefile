@@ -19,8 +19,7 @@ build no-cache: $(ECHO-SERVER)
 	docker build $(FLAGS) -t $(IMAGEBASE) .
 
 tidy:
-	@GOPROXY=https://nrm.us.equifax.com/repository/efxgo/ \
-	GOSUMDB='sum.golang.org https://nrm.us.equifax.com/repository/golang-sum-proxy/' \
+	@GOPROXY=http://goproxy.gcp.ntg.equifax.com/ GOSUMDB=off \
 	go mod tidy
 
 $(ECHO-SERVER):
