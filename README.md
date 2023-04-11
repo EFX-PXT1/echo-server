@@ -9,8 +9,25 @@ A very simple HTTP echo server with support for websockets.
 
 ## Configuration
 
-- The `PORT` environment variable sets the server port, which defaults to `8080`
-- Set the `LOG_HTTP_BODY` environment variable to dump request bodies to `STDOUT`
+Environment variables are used to set the behaviour.
+
+- `PORT` sets the server port, which defaults to `8080`
+- Define `LOG_HTTP_BODY` to dump request bodies to `STDOUT`
+- Define `LOG_ALL` to log a line to `STDOUT` for each request
+- `ENABLE_FEATURES` is a comma or space separated list of features to enable
+- Define `META_FILE` as the filename of a colon separated key:value metadata
+
+### Features
+
+Additional functionality can be requested by the addition of query parameters.
+By default this functionality is not enabled, but can be adding to the list of
+enabled features.
+
+- `delay` to allow requests to be delayed to simulate load (period with units)
+- `headers` to additionally output the request headers
+- `env` to additionally output the process environment
+- `meta` to additionally output the metadata
+- `log` to log a request line when `LOG_ALL` is not set
 
 ## Running the server
 

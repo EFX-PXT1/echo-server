@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -16,6 +17,7 @@ import (
 )
 
 var meta string
+var feature map[string]bool
 
 func main() {
 	port := os.Getenv("PORT")
@@ -31,6 +33,9 @@ func main() {
 			meta = string(data[:])
 		}
 	}
+
+	// setup features
+	setupFeatures()
 
 	ctx := signalContext()
 
@@ -53,7 +58,26 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+func setupFeatures() {
+	// populates features map from environment variable
+	features := os.Getenv("ENABLE_FEATURES")
+	feature = make(map[string]bool)
+	feature["delay"] = ContainsI(features, "delay")
+	feature["headers"] = ContainsI(features, "headers")
+	feature["env"] = ContainsI(features, "env")
+	feature["meta"] = ContainsI(features, "meta")
+	feature["log"] = ContainsI(features, "log")
+}
+
+func ContainsI(a string, b string) bool {
+	return strings.Contains(
+		strings.ToLower(a),
+		strings.ToLower(b),
+	)
+}
+
 func handler(wr http.ResponseWriter, req *http.Request) {
+	_, log := req.URL.Query()["log"]
 	if os.Getenv("LOG_HTTP_BODY") != "" {
 		fmt.Printf("--------  %s | %s %s\n", req.RemoteAddr, req.Method, req.URL)
 		buf := &bytes.Buffer{}
@@ -71,7 +95,7 @@ func handler(wr http.ResponseWriter, req *http.Request) {
 		req.Body = ioutil.NopCloser(
 			bytes.NewReader(buf.Bytes()),
 		)
-	} else {
+	} else if os.Getenv("LOG_ALL") != "" || (log && feature["log"]) {
 		fmt.Printf("%s | %s %s\n", req.RemoteAddr, req.Method, req.URL)
 	}
 
@@ -149,24 +173,26 @@ func serveHTTP(wr http.ResponseWriter, req *http.Request) {
 
 	// delay response if requested
 	delays := req.URL.Query()["delay"]
-	if len(delays) > 0 {
+	if len(delays) > 0 && feature["delay"] {
 		if d, err := time.ParseDuration(delays[0]); err == nil {
 			time.Sleep(d)
 			fmt.Fprintf(wr, "Delayed by: %s\n\n", delays[0])
 		}
 	}
 
-	// output request headers
-	fmt.Fprintf(wr, "Host: %s\n", req.Host)
-	for key, values := range req.Header {
-		for _, value := range values {
-			fmt.Fprintf(wr, "%s: %s\n", key, value)
+	// output request headers if requested
+	if _, ok := req.URL.Query()["headers"]; ok && feature["headers"] {
+		fmt.Fprintf(wr, "Host: %s\n", req.Host)
+		for key, values := range req.Header {
+			for _, value := range values {
+				fmt.Fprintf(wr, "%s: %s\n", key, value)
+			}
 		}
+		fmt.Fprintln(wr, "")
 	}
-	fmt.Fprintln(wr, "")
 
 	// dump environment if requested
-	if _, ok := req.URL.Query()["env"]; ok {
+	if _, ok := req.URL.Query()["env"]; ok && feature["env"] {
 		for _, e := range os.Environ() {
 			fmt.Fprintf(wr, "%s\n", e)
 			//			pair := strings.SplitAfterN(e, "=", 2)
@@ -176,7 +202,7 @@ func serveHTTP(wr http.ResponseWriter, req *http.Request) {
 	}
 
 	// dump meta if requested
-	if _, ok := req.URL.Query()["meta"]; ok {
+	if _, ok := req.URL.Query()["meta"]; ok && feature["meta"] {
 		fmt.Fprintf(wr, "%s\n\n", meta)
 	}
 
