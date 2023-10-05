@@ -266,8 +266,27 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 	}
 	client := &http.Client{Transport: tr}
 
+	postReq, _ := http.NewRequest("POST", url, bytes.NewReader(chainBody))
+
+	// propagate tracing headers
+	// https://istio.io/latest/about/faq/distributed-tracing/#how-to-support-tracing
+	postReq.Header = http.Header{
+		"x-request-id":                req.Header.Values("x-request-id"),
+		"x-b3-traceid":                req.Header.Values("x-b3-traceid"),
+		"x-b3-spanid":                 req.Header.Values("x-b3-spanid"),
+		"x-b3-parentspanid":           req.Header.Values("x-b3-parentspanid"),
+		"x-b3-sampled":                req.Header.Values("x-b3-sampled"),
+		"x-b3-flags":                  req.Header.Values("x-b3-flags"),
+		"x-ot-span-context":           req.Header.Values("x-ot-span-context"),
+		"x-datadog-trace-id":          req.Header.Values("x-datadog-trace-id"),
+		"x-datadog-parent-id":         req.Header.Values("x-datadog-parent-id"),
+		"x-datadog-sampling-priority": req.Header.Values("x-datadog-sampling-priority"),
+	}
+
 	// call next link in chain
-	resp, err := client.Post(url, "application/json", bytes.NewReader(chainBody))
+	// resp, err := client.Post(url, "application/json", bytes.NewReader(chainBody))
+	resp, err := client.Do(postReq)
+
 	if err != nil {
 		fmt.Fprintf(wr, "chain call failed with %s\n", err)
 		fmt.Fprintln(wr, "")
