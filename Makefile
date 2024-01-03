@@ -56,6 +56,12 @@ clean:
 	-docker rmi $(REPO)$(IMAGEBASE):$(TAG)
 	docker rmi $(IMAGEBASE):$(TAG)
 
+sh:
+	docker exec -it $(NAME) /bin/sh
+
+explore:
+	docker run -it --rm  --entrypoint /bin/sh $(IMAGEBASE)
+
 sha-id:
 	@docker image inspect --format='{{.RepoDigests}}' $(REPO)$(IMAGEBASE):$(TAG) | awk -F[:\ ] '{print $$2}' | sed 's/]//'
 	
