@@ -11,13 +11,19 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"log/slog"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 )
@@ -40,6 +46,8 @@ func main() {
 		}
 	}
 
+	logInit()
+
 	// setup features
 	setupFeatures()
 
@@ -60,6 +68,7 @@ func main() {
 		serviceVersion := "0.0.1"
 		otelShutdown, err := setupOTelSDK(ctx, serviceName, serviceVersion)
 		if err != nil {
+			slog.Error("setupOTelSDK", "error", err)
 			return
 		}
 		// Handle shutdown properly so nothing leaks.
@@ -201,6 +210,7 @@ type Chain struct {
 func servePOST(wr http.ResponseWriter, req *http.Request) {
 	// Example
 	// curl -XPOST http://localhost:8080/?headers -d '{ "chain": ["http://localhost:8080/?headers&think=300ms&delay=300ms", "http://localhost:8080/?headers&think=150ms&delay=2000ms"]}'
+	// replace & with ^& on windos
 
 	// inspect and parse body for a chain
 	reqBody, _ := io.ReadAll(req.Body)
@@ -260,32 +270,41 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 
 	// https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
 
-	// disable tls checks on http post calls
-	tr := &http.Transport{
+	ctx := req.Context()
+	// tr := otel.Tracer("echo-server/client")
+	tr := trace.SpanFromContext(ctx).TracerProvider().Tracer("echo-server/client")
+
+	httptr := &http.Transport{
+		// disable tls checks on http post calls
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	client := &http.Client{Transport: tr}
-
-	postReq, _ := http.NewRequest("POST", url, bytes.NewReader(chainBody))
-
-	// propagate tracing headers
-	// https://istio.io/latest/about/faq/distributed-tracing/#how-to-support-tracing
-	postReq.Header = http.Header{
-		"x-request-id":                req.Header.Values("x-request-id"),
-		"x-b3-traceid":                req.Header.Values("x-b3-traceid"),
-		"x-b3-spanid":                 req.Header.Values("x-b3-spanid"),
-		"x-b3-parentspanid":           req.Header.Values("x-b3-parentspanid"),
-		"x-b3-sampled":                req.Header.Values("x-b3-sampled"),
-		"x-b3-flags":                  req.Header.Values("x-b3-flags"),
-		"x-ot-span-context":           req.Header.Values("x-ot-span-context"),
-		"x-datadog-trace-id":          req.Header.Values("x-datadog-trace-id"),
-		"x-datadog-parent-id":         req.Header.Values("x-datadog-parent-id"),
-		"x-datadog-sampling-priority": req.Header.Values("x-datadog-sampling-priority"),
+	//	client := &http.Client{Transport: htr}
+	client := &http.Client{Transport: otelhttp.NewTransport(
+		httptr,
+		otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
+			return otelhttptrace.NewClientTrace(ctx)
+		})),
 	}
 
-	// call next link in chain
-	// resp, err := client.Post(url, "application/json", bytes.NewReader(chainBody))
-	resp, err := client.Do(postReq)
+	body, err := func(ctx context.Context) (body []byte, err error) {
+		ctx, span := tr.Start(ctx, "invoke_chain", trace.WithAttributes(semconv.ProcessCommand("echo-server")))
+		defer span.End()
+		postReq, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(chainBody))
+
+		// propagate tracing headers
+		// https://istio.io/latest/about/faq/distributed-tracing/#how-to-support-tracing
+
+		// create new outgoing trace and inject into outgoing request
+		//		ctx, postReq = otelhttptrace.W3C(ctx, postReq)
+		//		otelhttptrace.Inject(ctx, postReq)
+
+		// call next link in chain
+		// resp, err := client.Post(url, "application/json", bytes.NewReader(chainBody))
+		resp, err := client.Do(postReq)
+		body, _ = io.ReadAll(resp.Body)
+		_ = resp.Body.Close() // think otel requires close
+		return
+	}(ctx)
 
 	if err != nil {
 		fmt.Fprintf(wr, "chain call failed with %s\n", err)
@@ -302,10 +321,15 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	io.Copy(wr, resp.Body)
+	wr.Write(body)
 }
 
 func serveGET(wr http.ResponseWriter, req *http.Request) {
+	ctx := req.Context()
+	tr := otel.Tracer("echo-server/server")
+	_, span := tr.Start(ctx, "serveGET", trace.WithAttributes(semconv.ProcessCommand("echo-server")))
+	defer span.End()
+
 	wr.Header().Add("Content-Type", "text/plain")
 	wr.WriteHeader(200)
 
