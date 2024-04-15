@@ -1,2 +1,4 @@
 .makefiles
 .git
+cmd/echo-server/echo-server
+*.exe
