@@ -5,10 +5,15 @@ package main
 import (
 	"context"
 	"errors"
+	"log/slog"
+	"os"
 	"time"
 
+	"github.com/go-logr/logr"
 	"go.opentelemetry.io/contrib/propagators/autoprop"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -37,6 +42,9 @@ func setupOTelSDK(ctx context.Context, serviceName, serviceVersion string) (shut
 	handleErr := func(inErr error) {
 		err = errors.Join(inErr, shutdown(ctx))
 	}
+
+	// Set Logger to slog
+	otel.SetLogger(logr.FromSlogHandler(slog.Default().Handler()))
 
 	// Setup resource.
 	res, err := newResource(serviceName, serviceVersion)
@@ -81,13 +89,18 @@ func newPropagator() propagation.TextMapPropagator {
 	*/
 }
 
-func newTraceProvider(ctx context.Context, res *resource.Resource) (*trace.TracerProvider, error) {
-	traceExporter, err := otlptracehttp.New(ctx)
+func newTraceProvider(ctx context.Context, res *resource.Resource) (traceProvider *trace.TracerProvider, err error) {
+	var traceExporter *otlptrace.Exporter
+	if os.Getenv("TRACE_GRPC") != "" {
+		traceExporter, err = otlptracegrpc.New(ctx)
+	} else {
+		traceExporter, err = otlptracehttp.New(ctx)
+	}
 	if err != nil {
 		return nil, err
 	}
 
-	traceProvider := trace.NewTracerProvider(
+	traceProvider = trace.NewTracerProvider(
 		trace.WithBatcher(traceExporter,
 			// Default is 5s. Set to 1s for demonstrative purposes.
 			trace.WithBatchTimeout(time.Second)),
