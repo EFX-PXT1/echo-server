@@ -10,13 +10,17 @@ TAG?=$(shell git describe --tags --dirty --always)
 IMAGEBASE:=$(CTX)/$(NAME)
 
 ECHO-SERVER:=cmd/echo-server/echo-server
+ECHO-SERVER-DBG:=cmd/echo-server/echo-server-dbg
 
-binaries: $(ECHO-SERVER)
+binaries: $(ECHO-SERVER) $(ECHO-SERVER-DBG)
 
 no-cache: FLAGS += --no-cache
 
-build no-cache: $(ECHO-SERVER)
+build no-cache:
 	docker build $(FLAGS) -t $(IMAGEBASE) .
+
+debug: 
+	docker build --target $@ $(FLAGS) -t $(IMAGEBASE)-$@ .
 
 tidy:
 	@GOPROXY=https://nrm.us.equifax.com/repository/efxgo/ \
@@ -25,6 +29,10 @@ tidy:
 
 $(ECHO-SERVER):
 	cd cmd/echo-server && CGO_ENABLED=0 go build -ldflags="-extldflags=-static"
+	chmod 755 $@
+
+$(ECHO-SERVER-DBG):
+	cd cmd/echo-server && CGO_ENABLED=0 go build -o $(notdir $@) -ldflags="-extldflags=-static" -gcflags="all=-N -l" .
 	chmod 755 $@
 
 run:
@@ -52,7 +60,8 @@ dive:
 	dive $(REPO)$(IMAGEBASE):$(TAG)
 
 clean:
-	-rm cmd/echo-server/echo-server
+	-rm $(ECHO-SERVER)
+	-rm $(ECHO-SERVER-DBG)
 	-docker rmi $(REPO)$(IMAGEBASE):$(TAG)
 	docker rmi $(IMAGEBASE):$(TAG)
 
@@ -61,6 +70,9 @@ sh:
 
 explore:
 	docker run -it --rm  --entrypoint /bin/sh $(IMAGEBASE)
+
+explore-debug:
+	docker run -it --rm  --entrypoint /bin/sh $(IMAGEBASE)-debug
 
 sha-id:
 	@docker image inspect --format='{{.RepoDigests}}' $(REPO)$(IMAGEBASE):$(TAG) | awk -F[:\ ] '{print $$2}' | sed 's/]//'

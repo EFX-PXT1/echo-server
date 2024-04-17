@@ -1,2 +1,3 @@
+@REM curl -XPOST http://localhost:8080/sre-echo/?headers -d "{ \"chain\": [\"http://localhost:8080/?headers^&think=300ms^&delay=300ms\", \"http://localhost:8080/?headers^&think=150ms^&delay=2000ms\"]}"
 curl -XPOST http://localhost:8080/sre-echo/?headers -d "{ \"chain\": [\"http://localhost:8080/?headers^&think=300ms^&delay=300ms\", \"http://localhost:8080/?headers^&think=150ms^&delay=2000ms\"]}"
 @REM curl -XPOST http://localhost:8080/sre-echo/?headers -d "{ \"chain\": [\"https://i.core.uk-sre-tools-npe-65d5.ntg.equifax.com/sre-echo/?headers\", \"http://localhost:8080/?headers^&think=150ms^&delay=2000ms\"]}"

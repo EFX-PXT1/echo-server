@@ -1,2 +1,4 @@
 echo-server
+echo-server-dbg
 echo-server.exe
+echo-server-dbg.exe

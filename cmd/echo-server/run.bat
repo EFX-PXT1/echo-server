@@ -1,6 +1,6 @@
 @SETLOCAL
 @REM SET ENABLE_FEATURES="delay,think,headers,env,otel,post,log"
-@SET ENABLE_FEATURES="nosignals,delay,think,headers,post,otel"
+@SET ENABLE_FEATURES="nosignals,delay,think,headers,post,otel,timeout"
 @REM SET TRACE_GRPC=yes
 @REM SET LOG_LEVEL=-4
 @REM SET LOG_JSON=yes

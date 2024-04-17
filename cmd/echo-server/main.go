@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"log/slog"
 	"net/http"
@@ -105,6 +104,7 @@ func setupFeatures() {
 	feature["log"] = ContainsI(features, "log")
 	feature["otel"] = ContainsI(features, "otel")
 	feature["post"] = ContainsI(features, "post")
+	feature["timeout"] = ContainsI(features, "timeout")
 }
 
 func ContainsI(a string, b string) bool {
@@ -130,7 +130,7 @@ func handler(wr http.ResponseWriter, req *http.Request) {
 		// Replace original body with buffered version so it's still sent to the
 		// browser.
 		req.Body.Close()
-		req.Body = ioutil.NopCloser(
+		req.Body = io.NopCloser(
 			bytes.NewReader(buf.Bytes()),
 		)
 	} else if os.Getenv("LOG_ALL") != "" || (log && feature["log"]) {
@@ -259,6 +259,17 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 	fmt.Fprintf(wr, "%s\n", reqBody)
 	fmt.Fprintln(wr, "")
 
+	// default timeout for post request
+	timeout := 60 * time.Second
+
+	// override timeout if allowed and provided
+	timeoutS := req.URL.Query()["timeout"]
+	if len(timeoutS) > 0 && feature["timeout"] {
+		if d, err := time.ParseDuration(timeoutS[0]); err == nil {
+			timeout = d
+		}
+	}
+
 	// think delay before chain link if requested
 	delays := req.URL.Query()["think"]
 	if len(delays) > 0 && feature["think"] {
@@ -284,6 +295,7 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 		otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
 			return otelhttptrace.NewClientTrace(ctx)
 		})),
+		Timeout: timeout,
 	}
 
 	body, err := func(ctx context.Context) (body []byte, err error) {
@@ -301,8 +313,10 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 		// call next link in chain
 		// resp, err := client.Post(url, "application/json", bytes.NewReader(chainBody))
 		resp, err := client.Do(postReq)
-		body, _ = io.ReadAll(resp.Body)
-		_ = resp.Body.Close() // think otel requires close
+		if err == nil {
+			body, _ = io.ReadAll(resp.Body)
+			_ = resp.Body.Close() // think otel requires close
+		}
 		return
 	}(ctx)
 
