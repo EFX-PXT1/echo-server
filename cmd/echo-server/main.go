@@ -310,6 +310,8 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 		//		ctx, postReq = otelhttptrace.W3C(ctx, postReq)
 		//		otelhttptrace.Inject(ctx, postReq)
 
+		_, postReq = PropagateEfxHeaders(ctx, req, postReq)
+
 		// call next link in chain
 		// resp, err := client.Post(url, "application/json", bytes.NewReader(chainBody))
 		resp, err := client.Do(postReq)
@@ -393,4 +395,19 @@ func serveGET(wr http.ResponseWriter, req *http.Request) {
 	}
 
 	io.Copy(wr, req.Body)
+}
+
+func PropagateEfxHeaders(ctx context.Context, src *http.Request, req *http.Request) (context.Context, *http.Request) {
+	// https://istio.io/latest/docs/tasks/observability/distributed-tracing/overview/#trace-context-propagation
+	efxHeaders := []string{"x-request-id"}
+
+	// for now we just copy from src to req, but in future we may have hierarchy and also look in ctx
+	for _, key := range efxHeaders {
+		if id := src.Header.Get(key); id != "" {
+			if req.Header.Get(key) == "" {
+				req.Header.Add(key, id)
+			}
+		}
+	}
+	return ctx, req
 }

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
+
+	// datadog "github.com/tonglil/opentelemetry-go-datadog-propagator"
 	"go.opentelemetry.io/contrib/propagators/autoprop"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
@@ -78,8 +80,17 @@ func newResource(serviceName, serviceVersion string) (*resource.Resource, error)
 }
 
 func newPropagator() propagation.TextMapPropagator {
+	/*
+		return propagation.NewCompositeTextMapPropagator(
+			autoprop.NewTextMapPropagator(),
+			// https://github.com/open-telemetry/opentelemetry-specification/issues/2912#issuecomment-1439015358
+			// datadog.Propagator{},
+		)
+	*/
+
 	// https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/#general-sdk-configuration
 	return autoprop.NewTextMapPropagator()
+
 	/*
 		return propagation.NewCompositeTextMapPropagator(
 			propagation.TraceContext{},
