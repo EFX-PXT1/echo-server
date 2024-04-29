@@ -314,6 +314,7 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 
 		// call next link in chain
 		// resp, err := client.Post(url, "application/json", bytes.NewReader(chainBody))
+		postReq.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(postReq)
 		if err == nil {
 			body, _ = io.ReadAll(resp.Body)
