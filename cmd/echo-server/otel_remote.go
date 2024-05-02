@@ -112,10 +112,11 @@ func newTraceProvider(ctx context.Context, res *resource.Resource) (traceProvide
 	}
 
 	traceProvider = trace.NewTracerProvider(
-		trace.WithBatcher(traceExporter,
-			// Default is 5s. Set to 1s for demonstrative purposes.
-			trace.WithBatchTimeout(time.Second)),
+		// Default is 5s. Set to 1s for demonstrative purposes.
+		trace.WithBatcher(traceExporter, trace.WithBatchTimeout(time.Second)),
 		trace.WithResource(res),
+		// https://opentelemetry.io/docs/languages/go/sampling/
+		// trace.WithSampler(trace.ParentBased(trace.TraceIDRatioBased(1.1))
 	)
 	return traceProvider, nil
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/gorilla/websocket"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/filters"
 	"go.opentelemetry.io/otel"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 	"go.opentelemetry.io/otel/trace"
@@ -75,7 +76,11 @@ func main() {
 			err = errors.Join(err, otelShutdown(context.Background()))
 		}()
 
-		handl = otelhttp.NewHandler(handl, "")
+		var opts []otelhttp.Option
+		if !feature["traceoptions"] {
+			opts = append(opts, otelhttp.WithFilter(filters.Not(filters.Method("OPTIONS"))))
+		}
+		handl = otelhttp.NewHandler(handl, "", opts...)
 	}
 
 	err := http.ListenAndServe(":"+port, handl)
@@ -105,6 +110,7 @@ func setupFeatures() {
 	feature["otel"] = ContainsI(features, "otel")
 	feature["post"] = ContainsI(features, "post")
 	feature["timeout"] = ContainsI(features, "timeout")
+	feature["traceoptions"] = ContainsI(features, "traceoptions")
 }
 
 func ContainsI(a string, b string) bool {
@@ -198,8 +204,14 @@ func serveWebSocket(wr http.ResponseWriter, req *http.Request) {
 func serveHTTP(wr http.ResponseWriter, req *http.Request) {
 	if req.Method == "POST" && feature["post"] {
 		servePOST(wr, req)
+	} else if req.Method == "OPTIONS" {
+		if feature["traceoptions"] {
+			serveGET(wr, req, true)
+		} else {
+			serveGET(wr, req, false)
+		}
 	} else {
-		serveGET(wr, req)
+		serveGET(wr, req, true)
 	}
 }
 
@@ -222,7 +234,7 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 
 	if len(chain.URL) == 0 {
 		// no chain so act like get
-		serveGET(wr, req)
+		serveGET(wr, req, true)
 		return
 	}
 
@@ -341,11 +353,13 @@ func servePOST(wr http.ResponseWriter, req *http.Request) {
 	wr.Write(body)
 }
 
-func serveGET(wr http.ResponseWriter, req *http.Request) {
-	ctx := req.Context()
-	tr := otel.Tracer("echo-server/server")
-	_, span := tr.Start(ctx, "serveGET", trace.WithAttributes(semconv.ProcessCommand("echo-server")))
-	defer span.End()
+func serveGET(wr http.ResponseWriter, req *http.Request, startSpan bool) {
+	if startSpan {
+		ctx := req.Context()
+		tr := otel.Tracer("echo-server/server")
+		_, span := tr.Start(ctx, "serveGET", trace.WithAttributes(semconv.ProcessCommand("echo-server")))
+		defer span.End()
+	}
 
 	wr.Header().Add("Content-Type", "text/plain")
 	wr.WriteHeader(200)
