@@ -1,6 +1,6 @@
 #FROM gcr.io/iaas-gcr-reg-prd-ad3d/golden/scratch:1.0
 # Build builder
-FROM golang:1.22.2-alpine3.19 as build
+FROM golang:1.22.3-alpine3.19 as build
 # align to 1.21 for delve in 3.19
 # FROM golang:1.21.9-alpine3.19 as build
 
