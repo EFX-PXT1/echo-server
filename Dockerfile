@@ -1,6 +1,6 @@
 #FROM gcr.io/iaas-gcr-reg-prd-ad3d/golden/scratch:1.0
 # Build builder
-FROM golang:1.22.3-alpine3.19 as build
+FROM golang:1.22.5-alpine3.20 as build
 # align to 1.21 for delve in 3.19
 # FROM golang:1.21.9-alpine3.19 as build
 
@@ -23,7 +23,7 @@ apk --no-cache add git make && \
 apk --no-cache add --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community delve && \
 make -e -C /go/build
 
-FROM gcr.io/iaas-gcr-reg-prd-ad3d/golden/os/alpine:3.19 as base
+FROM gcr.io/iaas-gcr-reg-prd-ad3d/golden/os/alpine:3.20 as base
 USER root
 RUN \
 deluser --remove-home efx_container_user
